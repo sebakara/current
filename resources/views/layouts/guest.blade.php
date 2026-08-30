@@ -1,3 +1,12 @@
+@php
+    $companyName = setting('company_name', 'VTLABS');
+    $shortName = setting('company_short_name', 'VT');
+    $tagline = setting('company_tagline', 'Innovation Laboratory');
+    $logo = setting('logo');
+    $logoExists = $logo
+        && Storage::disk('public')->exists($logo);
+@endphp
+
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
@@ -17,6 +26,7 @@
 
     <x-theme-script />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <x-brand-styles />
 
     @stack('styles')
 </head>
@@ -59,21 +69,29 @@
             <section class="hidden border-r border-slate-200 dark:border-white/10 lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
                 <div>
                     <a href="{{ url('/') }}" class="inline-flex items-center gap-4">
-                        <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow-2xl shadow-brand-primary-dark/20">
-                            <span class="text-xl font-black tracking-tight text-white">
-                                VT
-                            </span>
-                        </div>
+                        @if ($logoExists)
+                            <img
+                                src="{{ Storage::url($logo) }}"
+                                alt="{{ $companyName }}"
+                                class="h-14 w-auto max-w-52 object-contain"
+                            >
+                        @else
+                            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow-2xl shadow-brand-primary-dark/20">
+                                <span class="text-xl font-black tracking-tight text-white">
+                                    {{ $shortName }}
+                                </span>
+                            </div>
 
-                        <div>
-                            <p class="text-2xl font-black tracking-[0.12em] text-slate-900 dark:text-white">
-                                VTLABS
-                            </p>
+                            <div>
+                                <p class="text-2xl font-black tracking-[0.12em] text-slate-900 dark:text-white">
+                                    {{ $companyName }}
+                                </p>
 
-                            <p class="mt-1 text-xs font-semibold uppercase tracking-[0.26em] text-brand-primary">
-                                Innovation Laboratory
-                            </p>
-                        </div>
+                                <p class="mt-1 text-xs font-semibold uppercase tracking-[0.26em] text-brand-primary">
+                                    {{ $tagline }}
+                                </p>
+                            </div>
+                        @endif
                     </a>
                 </div>
 
@@ -132,19 +150,29 @@
                 <div class="w-full max-w-md">
                     {{-- Mobile branding --}}
                     <div class="mb-10 flex items-center justify-center gap-3 lg:hidden">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow-xl shadow-brand-primary-dark/20">
-                            <span class="font-black text-white">VT</span>
-                        </div>
+                        @if ($logoExists)
+                            <img
+                                src="{{ Storage::url($logo) }}"
+                                alt="{{ $companyName }}"
+                                class="h-12 w-auto max-w-44 object-contain"
+                            >
+                        @else
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow-xl shadow-brand-primary-dark/20">
+                                <span class="font-black text-white">
+                                    {{ $shortName }}
+                                </span>
+                            </div>
 
-                        <div>
-                            <p class="text-xl font-black tracking-[0.1em] text-slate-900 dark:text-white">
-                                VTLABS
-                            </p>
+                            <div>
+                                <p class="text-xl font-black tracking-[0.1em] text-slate-900 dark:text-white">
+                                    {{ $companyName }}
+                                </p>
 
-                            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-primary">
-                                Innovation Laboratory
-                            </p>
-                        </div>
+                                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-primary">
+                                    {{ $tagline }}
+                                </p>
+                            </div>
+                        @endif
                     </div>
 
                     {{ $slot }}

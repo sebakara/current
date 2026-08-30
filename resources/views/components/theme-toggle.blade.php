@@ -1,5 +1,6 @@
 <button
     type="button"
+    x-data
     class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-600 shadow-sm backdrop-blur transition hover:border-brand-primary/30 hover:text-brand-primary-dark dark:border-white/10 dark:bg-white/[0.045] dark:text-slate-300 dark:hover:text-brand-primary-light"
     :aria-label="$store.theme.dark ? 'Switch to light mode' : 'Switch to dark mode'"
     :title="$store.theme.dark ? 'Switch to light mode' : 'Switch to dark mode'"
