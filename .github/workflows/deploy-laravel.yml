@@ -85,7 +85,7 @@ jobs:
           set -euo pipefail
           remote_path=$(printf '%q' "$DEPLOY_PATH")
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "test -d $remote_path && test -w $remote_path"
+            "mkdir -p $remote_path && test -w $remote_path"
 
       - name: Upload application
         run: |
