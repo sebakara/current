@@ -1,0 +1,395 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Setting;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
+
+class SettingController extends Controller
+{
+    public function index(): View
+    {
+        $definitions = $this->definitions();
+
+        $settings = Setting::query()
+            ->whereIn(
+                'key',
+                collect($definitions)
+                    ->flatten(1)
+                    ->pluck('key')
+                    ->all()
+            )
+            ->get()
+            ->keyBy('key');
+
+        return view(
+            'admin.settings.index',
+            compact('definitions', 'settings')
+        );
+    }
+
+    public function update(Request $request): RedirectResponse
+    {
+        $definitions = collect($this->definitions())
+            ->flatten(1)
+            ->keyBy('key');
+
+        $rules = [];
+
+        foreach ($definitions as $key => $definition) {
+            $rules[$key] = $definition['rules'];
+
+            if ($definition['type'] === 'image') {
+                $rules["remove_{$key}"] = [
+                    'nullable',
+                    'boolean',
+                ];
+            }
+        }
+
+        $validated = $request->validate($rules);
+
+        foreach ($definitions as $key => $definition) {
+            $setting = Setting::query()
+                ->where('key', $key)
+                ->first();
+
+            if ($definition['type'] === 'image') {
+                $this->updateImageSetting(
+                    $request,
+                    $setting,
+                    $definition
+                );
+
+                continue;
+            }
+
+            $value = $validated[$key] ?? null;
+
+            if (is_string($value)) {
+                $value = trim($value);
+            }
+
+            Setting::updateOrCreate(
+                ['key' => $key],
+                [
+                    'group' => $definition['group'],
+                    'value' => $value,
+                    'type' => $definition['type'],
+                    'is_public' => true,
+                ]
+            );
+        }
+
+        Cache::forget('website.public-settings');
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with(
+                'success',
+                'Website settings updated successfully.'
+            );
+    }
+
+    private function updateImageSetting(
+        Request $request,
+        ?Setting $setting,
+        array $definition
+    ): void {
+        $key = $definition['key'];
+        $currentPath = $setting?->value;
+
+        if ($request->boolean("remove_{$key}")) {
+            $this->deleteStoredFile($currentPath);
+            $currentPath = null;
+        }
+
+        if ($request->hasFile($key)) {
+            $this->deleteStoredFile($currentPath);
+
+            $currentPath = $request
+                ->file($key)
+                ->store(
+                    'website/settings',
+                    'public'
+                );
+        }
+
+        Setting::updateOrCreate(
+            ['key' => $key],
+            [
+                'group' => $definition['group'],
+                'value' => $currentPath,
+                'type' => 'image',
+                'is_public' => true,
+            ]
+        );
+    }
+
+    private function deleteStoredFile(?string $path): void
+    {
+        if (
+            $path
+            && Storage::disk('public')->exists($path)
+        ) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function definitions(): array
+    {
+        return [
+            'identity' => [
+                [
+                    'group' => 'identity',
+                    'key' => 'company_name',
+                    'label' => 'Company name',
+                    'type' => 'text',
+                    'rules' => [
+                        'required',
+                        'string',
+                        'max:150',
+                    ],
+                ],
+                [
+                    'group' => 'identity',
+                    'key' => 'company_short_name',
+                    'label' => 'Company short name',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:20',
+                    ],
+                ],
+                [
+                    'group' => 'identity',
+                    'key' => 'company_tagline',
+                    'label' => 'Company tagline',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:250',
+                    ],
+                ],
+                [
+                    'group' => 'identity',
+                    'key' => 'logo',
+                    'label' => 'Website logo',
+                    'type' => 'image',
+                    'rules' => [
+                        'nullable',
+                        'image',
+                        'mimes:jpg,jpeg,png,webp,svg',
+                        'max:8192',
+                    ],
+                ],
+                [
+                    'group' => 'identity',
+                    'key' => 'favicon',
+                    'label' => 'Website favicon',
+                    'type' => 'image',
+                    'rules' => [
+                        'nullable',
+                        'file',
+                        'mimes:png,jpg,jpeg,webp,ico',
+                        'max:2048',
+                    ],
+                ],
+            ],
+
+            'contact' => [
+                [
+                    'group' => 'contact',
+                    'key' => 'company_email',
+                    'label' => 'Company email',
+                    'type' => 'text',
+                    'rules' => [
+                        'required',
+                        'email',
+                        'max:150',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'company_phone',
+                    'label' => 'Company phone',
+                    'type' => 'text',
+                    'rules' => [
+                        'required',
+                        'string',
+                        'max:50',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'company_address',
+                    'label' => 'Company address',
+                    'type' => 'textarea',
+                    'rules' => [
+                        'required',
+                        'string',
+                        'max:1000',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'contact_email',
+                    'label' => 'Contact-page email',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'email',
+                        'max:150',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'contact_phone',
+                    'label' => 'Contact-page phone',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:50',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'contact_address',
+                    'label' => 'Contact-page address',
+                    'type' => 'textarea',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:1000',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'whatsapp_number',
+                    'label' => 'WhatsApp number',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:30',
+                        'regex:/^[0-9]+$/',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'map_embed_url',
+                    'label' => 'Google Maps embed URL',
+                    'type' => 'textarea',
+                    'rules' => [
+                        'nullable',
+                        'url',
+                        'max:3000',
+                    ],
+                ],
+                [
+                    'group' => 'contact',
+                    'key' => 'operating_hours',
+                    'label' => 'Operating hours',
+                    'type' => 'textarea',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:1000',
+                    ],
+                ],
+            ],
+
+            'footer' => [
+                [
+                    'group' => 'footer',
+                    'key' => 'footer_description',
+                    'label' => 'Footer description',
+                    'type' => 'textarea',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:2000',
+                    ],
+                ],
+                [
+                    'group' => 'footer',
+                    'key' => 'copyright_text',
+                    'label' => 'Copyright text',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:500',
+                    ],
+                ],
+                [
+                    'group' => 'footer',
+                    'key' => 'privacy_policy_url',
+                    'label' => 'Privacy-policy URL',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:500',
+                    ],
+                ],
+                [
+                    'group' => 'footer',
+                    'key' => 'terms_url',
+                    'label' => 'Terms-and-conditions URL',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:500',
+                    ],
+                ],
+            ],
+
+            'seo' => [
+                [
+                    'group' => 'seo',
+                    'key' => 'default_meta_title',
+                    'label' => 'Default meta title',
+                    'type' => 'text',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:255',
+                    ],
+                ],
+                [
+                    'group' => 'seo',
+                    'key' => 'default_meta_description',
+                    'label' => 'Default meta description',
+                    'type' => 'textarea',
+                    'rules' => [
+                        'nullable',
+                        'string',
+                        'max:500',
+                    ],
+                ],
+                [
+                    'group' => 'seo',
+                    'key' => 'social_share_image',
+                    'label' => 'Social-sharing image',
+                    'type' => 'image',
+                    'rules' => [
+                        'nullable',
+                        'image',
+                        'mimes:jpg,jpeg,png,webp',
+                        'max:8192',
+                    ],
+                ],
+            ],
+        ];
+    }
+}
