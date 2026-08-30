@@ -65,6 +65,11 @@ jobs:
             fi
           done
 
+          if [ "$DEPLOY_PATH" != "/var/www/app/current" ]; then
+            echo "::error::DEPLOY_PATH must be /var/www/app/current"
+            exit 1
+          fi
+
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -85,12 +90,13 @@ jobs:
           set -euo pipefail
           remote_path=$(printf '%q' "$DEPLOY_PATH")
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "mkdir -p $remote_path && test -w $remote_path"
+            "mkdir -p $remote_path \
+              && test -w $remote_path"
 
       - name: Upload application
         run: |
           set -euo pipefail
-          rsync -az --delete \
+          rsync -az \
             -e "ssh -p $DEPLOY_PORT" \
             --exclude='.git' \
             --exclude='.github' \
@@ -113,9 +119,6 @@ jobs:
             "cd $remote_path && bash -s" <<'REMOTE'
           set -euo pipefail
 
-          php artisan down --retry=60 || true
-          trap 'php artisan up' EXIT
-
           mkdir -p \
             storage/framework/cache/data \
             storage/framework/sessions \
@@ -124,6 +127,16 @@ jobs:
             bootstrap/cache
 
           chmod -R ug+rwX storage bootstrap/cache
+
+          if [ ! -f .env ]; then
+            cp .env.example .env
+            sed -i 's/^APP_ENV=.*/APP_ENV=production/' .env
+            sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' .env
+            php artisan key:generate --force
+          fi
+
+          php artisan down --retry=60 || true
+          trap 'php artisan up' EXIT
 
           php artisan migrate --force
           php artisan storage:link || true
