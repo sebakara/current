@@ -93,21 +93,6 @@ jobs:
             "mkdir -p $remote_path \
               && test -w $remote_path"
 
-      - name: Upload production environment
-        env:
-          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
-        run: |
-          set -euo pipefail
-          if [ -z "$PRODUCTION_ENV" ]; then
-            echo "::error::PRODUCTION_ENV is not configured"
-            exit 1
-          fi
-
-          remote_path=$(printf '%q' "$DEPLOY_PATH")
-          printf '%s\n' "$PRODUCTION_ENV" |
-            ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-              "umask 077 && cat > $remote_path/.env"
-
       - name: Upload application
         run: |
           set -euo pipefail
@@ -117,7 +102,6 @@ jobs:
             --exclude='.github' \
             --exclude='.env' \
             --exclude='node_modules' \
-            --exclude='storage/app' \
             --exclude='storage/framework/cache' \
             --exclude='storage/framework/sessions' \
             --exclude='storage/framework/views' \
@@ -143,11 +127,9 @@ jobs:
 
           chmod -R ug+rwX storage bootstrap/cache
 
-          sed -i 's/^APP_ENV=.*/APP_ENV=production/' .env
-          sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' .env
-
-          if ! grep -q '^APP_KEY=base64:' .env; then
-            php artisan key:generate --force
+          if [ ! -f .env ]; then
+            echo "ERROR: /var/www/app/current/.env is not configured"
+            exit 1
           fi
 
           php artisan down --retry=60 || true
